@@ -1,0 +1,236 @@
+import os
+import subprocess
+import logging
+import re
+from typing import List, Dict, Tuple
+
+logger = logging.getLogger(__name__)
+
+# Thư mục gốc của dự án
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def get_ffmpeg_path() -> str:
+    """Lấy đường dẫn tới file ffmpeg.exe cục bộ trong thư mục ffmpeg của dự án, hoặc fallback."""
+    local_path = os.path.join(BASE_DIR, "ffmpeg", "ffmpeg.exe")
+    if os.path.exists(local_path):
+        return local_path
+    return "ffmpeg"
+
+def get_ffprobe_path() -> str:
+    """Lấy đường dẫn tới file ffprobe.exe cục bộ trong thư mục ffmpeg của dự án, hoặc fallback."""
+    local_path = os.path.join(BASE_DIR, "ffmpeg", "ffprobe.exe")
+    if os.path.exists(local_path):
+        return local_path
+    return "ffprobe"
+
+def srt_time_to_seconds(time_str: str) -> float:
+    """
+    Chuyển đổi chuỗi thời gian SRT (HH:MM:SS,mmm hoặc HH:MM:SS.mmm) thành số giây (float).
+    Ví dụ: '00:01:20,123' -> 80.123
+    """
+    try:
+        time_str = time_str.strip().replace(',', '.')
+        parts = time_str.split(':')
+        if len(parts) == 3:
+            h, m, s = parts
+            return float(h) * 3600 + float(m) * 60 + float(s)
+        elif len(parts) == 2:
+            m, s = parts
+            return float(m) * 60 + float(s)
+        else:
+            return float(parts[0])
+    except Exception as e:
+        logger.error(f"Lỗi khi parse thời gian '{time_str}': {e}")
+        return 0.0
+
+def get_video_resolution(video_path: str) -> Tuple[int, int]:
+    """Lấy độ phân giải (Width, Height) của video bằng ffprobe."""
+    ffprobe = get_ffprobe_path()
+    cmd = [
+        ffprobe,
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "csv=s=x:p=0",
+        video_path
+    ]
+    
+    startupinfo = None
+    if os.name == 'nt':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            startupinfo=startupinfo,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+            timeout=10
+        )
+        if result.returncode == 0:
+            res_str = result.stdout.strip()
+            match = re.match(r"^(\d+)x(\d+)", res_str)
+            if match:
+                return int(match.group(1)), int(match.group(2))
+            raise RuntimeError(f"Định dạng độ phân giải không hợp lệ: {res_str}")
+        else:
+            raise RuntimeError(f"ffprobe thất bại: {result.stderr.strip()}")
+    except Exception as e:
+        logger.error(f"Lỗi khi lấy độ phân giải video {video_path}: {e}")
+        # Mặc định fallback nếu lỗi
+        return 1920, 1080
+
+def replace_video_segments(video_path: str, segments: List[Dict], output_path: str, log_callback=None) -> bool:
+    """
+    Sử dụng FFmpeg overlay để thay thế hình ảnh tại các phân đoạn chỉ định bằng ảnh tĩnh mới,
+    giữ nguyên luồng âm thanh gốc của video mà không làm mất đồng bộ.
+    
+    `segments` có định dạng: [{"start_sec": 10.5, "end_sec": 15.0, "image_path": "path/to/img.png"}]
+    """
+    def log(msg):
+        if log_callback:
+            log_callback(msg)
+        else:
+            logger.info(msg)
+
+    if not segments:
+        log("⚠️ Không có phân đoạn nào cần thay thế. Sao chép trực tiếp video gốc...")
+        import shutil
+        try:
+            shutil.copy2(video_path, output_path)
+            return True
+        except Exception as e:
+            log(f"❌ Không thể sao chép video gốc: {e}")
+            return False
+
+    ffmpeg = get_ffmpeg_path()
+    
+    # Lấy kích thước video gốc để scale ảnh vừa vặn
+    W, H = get_video_resolution(video_path)
+    log(f"📹 Độ phân giải video gốc: {W}x{H}")
+
+    # Xây dựng lệnh FFmpeg
+    cmd = [
+        ffmpeg,
+        "-i", video_path
+    ]
+    
+    # Thêm các tệp hình ảnh đầu vào (mặc định luôn hiển thị 5.0 giây)
+    for seg in segments:
+        duration = 5.0
+        cmd.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", seg["image_path"]])
+
+    # Xây dựng filter_complex
+    # Bước 1: Khởi tạo luồng ảnh tĩnh động với hiệu ứng chuyển động chậm (zoompan) và mờ dần (Fade)
+    filter_parts = []
+    import random
+    fps = 25
+    
+    for idx, seg in enumerate(segments):
+        img_idx = idx + 1
+        start = seg["start_sec"]
+        duration = 5.0
+        end = start + duration
+        
+        total_frames = int(duration * fps)
+        if total_frames <= 0:
+            total_frames = 125
+            
+        # Chọn ngẫu nhiên hiệu ứng chuyển động chậm
+        effects = ["zoom_in", "zoom_out", "pan_lr", "pan_rl"]
+        effect = random.choice(effects)
+        
+        # 1. Áp dụng hiệu ứng zoompan trên ảnh tĩnh để tạo luồng video động chuyển động chậm (dùng trunc để khử hoàn toàn rung lắc)
+        if effect == "zoom_in":
+            motion_filter = f"zoompan=z='min(zoom+0.0005,1.08)':x='trunc(iw/2-(iw/zoom)/2)':y='trunc(ih/2-(ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
+        elif effect == "zoom_out":
+            motion_filter = f"zoompan=z='max(1.08-0.0005*on,1.0)':x='trunc(iw/2-(iw/zoom)/2)':y='trunc(ih/2-(ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
+        elif effect == "pan_lr":
+            motion_filter = f"zoompan=z=1.08:x='trunc((iw-iw/zoom)*(on/{total_frames}))':y='trunc((ih-ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
+        else: # pan_rl
+            motion_filter = f"zoompan=z=1.08:x='trunc((iw-iw/zoom)*(1.0-on/{total_frames}))':y='trunc((ih-ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
+            
+        # Dịch chuyển PTS để khớp với timeline của video gốc
+        pts_filter = f"setpts=PTS+{start}/TB"
+        
+        # 2. Thêm hiệu ứng chuyển cảnh mờ dần (fade-in / fade-out)
+        fade_duration = min(0.5, duration / 2.0)
+        fade_filter = f"format=yuva420p,fade=t=in:st={start}:d={fade_duration}:alpha=1,fade=t=out:st={end-fade_duration}:d={fade_duration}:alpha=1"
+        
+        filter_parts.append(f"[{img_idx}:v]{motion_filter},{pts_filter},{fade_filter}[scaled_img{img_idx}]")
+
+    # Bước 2: Chuỗi các bộ lọc overlay
+    last_v = "0:v"
+    for idx, seg in enumerate(segments):
+        img_idx = idx + 1
+        out_v = f"v{img_idx}" if idx < len(segments) - 1 else "outv"
+        
+        start = seg["start_sec"]
+        duration = 5.0
+        end = start + duration
+        
+        # overlays đè ảnh lên video trong khoảng thời gian [start, end] (luôn là 5s)
+        filter_parts.append(
+            f"[{last_v}][scaled_img{img_idx}]overlay=x=0:y=0:enable='between(t,{start:.3f},{end:.3f})'[{out_v}]"
+        )
+        last_v = out_v
+
+    filter_complex_str = ";".join(filter_parts)
+    
+    cmd.extend([
+        "-filter_complex", filter_complex_str,
+        "-map", "[outv]",
+        "-map", "0:a?", # Map audio stream nếu có, bỏ qua nếu video không có âm thanh
+        "-c:a", "copy",   # Sao chép trực tiếp audio stream (không re-encode)
+        "-c:v", "libx264",# Re-encode video stream sang h264
+        "-preset", "medium",
+        "-crf", "23",
+        "-y",
+        output_path
+    ])
+
+    log(f"🎬 Khởi chạy FFmpeg xử lý ghép đè hình ảnh...")
+    
+    startupinfo = None
+    if os.name == 'nt':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            startupinfo=startupinfo,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        )
+        
+        # Đọc stderr để hiển thị log tiến độ (FFmpeg in log ra stderr)
+        while True:
+            line = process.stderr.readline()
+            if not line:
+                break
+            line_str = line.strip()
+            # Lọc log FFmpeg để hiển thị các thông tin tiến độ chính cho người dùng
+            if "frame=" in line_str or "size=" in line_str:
+                log(f"   ⏳ {line_str}")
+        
+        process.wait()
+        
+        if process.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+            log(f"✅ Xử lý video thành công! Đầu ra lưu tại: {output_path}")
+            return True
+        else:
+            error_msg = process.stderr.read().strip()
+            log(f"❌ FFmpeg xử lý thất bại (Code {process.returncode}): {error_msg}")
+            return False
+            
+    except Exception as e:
+        log(f"❌ Ngoại lệ xảy ra trong FFmpeg: {e}")
+        return False

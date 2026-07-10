@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build directories
+build_out/
+dist/
+build/
+*.dist/
+*.build/
+
+# Heavy executables and binaries
+*.exe
+ffmpeg/
+chrome_bin/
+
+# Local session and output data
+profiles/
+temp_downloads/
+result/
+output/
+*.mp4
+*.srt
+*.png
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
