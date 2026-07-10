@@ -618,15 +618,24 @@ class BrowserAutomationController:
         except Exception:
             return ''
 
-    def analyze_srt(self, srt_content: str, n_keywords: int) -> List[Dict]:
+    def analyze_srt(self, srt_content: str, n_keywords: int, custom_prompt: str = "") -> List[Dict]:
         """Gửi nội dung SRT lên Gemini để phân tích và lấy JSON kết quả."""
         self.log(f"📝 Đang gửi phân tích phụ đề SRT ({n_keywords} từ khóa)...")
+        
+        # Thêm chỉ thị về phong cách/style ảnh nếu có
+        style_instructions = ""
+        if custom_prompt.strip():
+            style_instructions = (
+                f"\nLƯU Ý QUAN TRỌNG VỀ PHONG CÁCH (STYLE): Hãy lồng ghép thêm phong cách/yêu cầu sau đây "
+                f"vào tất cả các câu prompt tạo ảnh (trường 'prompt' trong JSON): '{custom_prompt.strip()}'."
+            )
+            
         prompt = (
             f"Dưới đây là nội dung tệp phụ đề SRT:\n\n{srt_content}\n\n"
             f"Nhiệm vụ: Hãy phân tích tệp SRT này, tìm ra các từ khóa quan trọng và mô tả các phân đoạn tương ứng. "
             f"Chọn ngẫu nhiên đúng {n_keywords} từ khóa xuất hiện trong tệp phụ đề. "
             f"Với mỗi từ khóa được chọn, hãy trích xuất đoạn Timeline (Start -> End) tương ứng của nó "
-            f"và viết một câu Prompt tiếng Anh chi tiết để tạo ảnh mô tả cho đoạn chứa từ khóa đó. "
+            f"và viết một câu Prompt tiếng Anh chi tiết để tạo ảnh mô tả cho đoạn chứa từ khóa đó.{style_instructions}\n\n"
             f"Đặc biệt chú ý: định dạng timeline là HH:MM:SS (hoặc HH:MM:SS,mmm), hãy ghi lại chính xác thời gian bắt đầu và kết thúc của đoạn chứa từ khóa trong SRT.\n\n"
             f"Trả về kết quả duy nhất ở định dạng JSON thô bên dưới, không chứa bất kỳ lời giải thích nào khác ngoài chuỗi JSON:\n"
             f"[\n"

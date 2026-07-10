@@ -27,7 +27,7 @@ class AppWorker(QThread):
     error_occurred = Signal(str)        # Lỗi xảy ra
     user_decision_requested = Signal(list) # Yêu cầu người dùng lựa chọn khi lỗi ảnh
 
-    def __init__(self, video_path: str, srt_path: str, n_keywords: int, output_dir: str, image_model: str = 'GEM_PIX_2', aspect_ratio: str = '16:9', headless: bool = True, parent=None):
+    def __init__(self, video_path: str, srt_path: str, n_keywords: int, output_dir: str, image_model: str = 'GEM_PIX_2', aspect_ratio: str = '16:9', custom_prompt: str = "", headless: bool = True, parent=None):
         super().__init__(parent)
         self.video_path = video_path
         self.srt_path = srt_path
@@ -35,6 +35,7 @@ class AppWorker(QThread):
         self.output_dir = output_dir
         self.image_model = image_model
         self.aspect_ratio = aspect_ratio
+        self.custom_prompt = custom_prompt
         self.headless = headless
         self.controller = None
         self._is_stopped = False
@@ -118,7 +119,7 @@ class AppWorker(QThread):
             self.progress_updated.emit(15)
             self.status_updated.emit("Đang phân tích phụ đề SRT bằng Gemini...")
             
-            keywords_data = self.controller.analyze_srt(srt_content, self.n_keywords)
+            keywords_data = self.controller.analyze_srt(srt_content, self.n_keywords, self.custom_prompt)
             # Đóng trình duyệt ngay sau khi lấy xong kết quả phân tích sub
             self.controller.cleanup()
             

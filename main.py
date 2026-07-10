@@ -174,6 +174,13 @@ class VideoVisualReplacerUI(QWidget):
         self.cb_ratio.currentIndexChanged.connect(self.save_config)
         grid_layout.addWidget(self.cb_ratio, 5, 1, Qt.AlignLeft)
 
+        # 7. Prompt tùy chỉnh (Style bổ sung)
+        grid_layout.addWidget(SubtitleLabel("Prompt bổ sung (Style):"), 6, 0)
+        self.txt_custom_prompt = LineEdit()
+        self.txt_custom_prompt.setPlaceholderText("Ví dụ: Vietnam traditional style, cinematic, photorealistic...")
+        self.txt_custom_prompt.textChanged.connect(self.save_config)
+        grid_layout.addWidget(self.txt_custom_prompt, 6, 1)
+
         card_layout.addLayout(grid_layout)
         tools_layout.addWidget(config_card)
 
@@ -381,7 +388,8 @@ class VideoVisualReplacerUI(QWidget):
             "n_keywords": self.spin_n.value(),
             "output_dir": self.txt_output_dir.text(),
             "image_model": self.cb_model.currentText(),
-            "aspect_ratio": self.cb_ratio.currentText()
+            "aspect_ratio": self.cb_ratio.currentText(),
+            "custom_prompt": self.txt_custom_prompt.text()
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -406,6 +414,8 @@ class VideoVisualReplacerUI(QWidget):
                     idx_ratio = self.cb_ratio.findText(ratio)
                     if idx_ratio >= 0:
                         self.cb_ratio.setCurrentIndex(idx_ratio)
+                        
+                    self.txt_custom_prompt.setText(config_data.get("custom_prompt", ""))
             except Exception:
                 pass
 
@@ -531,6 +541,7 @@ class VideoVisualReplacerUI(QWidget):
             output_dir=output,
             image_model=self.cb_model.currentText(),
             aspect_ratio=self.cb_ratio.currentText(),
+            custom_prompt=self.txt_custom_prompt.text(),
             headless=True,
             parent=self
         )
