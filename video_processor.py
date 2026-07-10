@@ -84,6 +84,39 @@ def get_video_resolution(video_path: str) -> Tuple[int, int]:
         # Mặc định fallback nếu lỗi
         return 1920, 1080
 
+def get_video_duration(video_path: str) -> float:
+    """Lấy tổng thời lượng (giây) của video bằng ffprobe."""
+    ffprobe = get_ffprobe_path()
+    cmd = [
+        ffprobe,
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+    
+    startupinfo = None
+    if os.name == 'nt':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            startupinfo=startupinfo,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+            timeout=10
+        )
+        if result.returncode == 0:
+            return float(result.stdout.strip())
+    except Exception as e:
+        logger.error(f"Lỗi khi lấy thời lượng video {video_path}: {e}")
+    return 0.0
+
 def replace_video_segments(video_path: str, segments: List[Dict], output_path: str, log_callback=None) -> bool:
     """
     Sử dụng FFmpeg overlay để thay thế hình ảnh tại các phân đoạn chỉ định bằng ảnh tĩnh mới,
@@ -99,6 +132,39 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
 
     if not segments:
         log("⚠️ Không có phân đoạn nào cần thay thế. Sao chép trực tiếp video gốc...")
+        import shutil
+        try:
+            shutil.copy2(video_path, output_path)
+            return True
+        except Exception as e:
+            log(f"❌ Không thể sao chép video gốc: {e}")
+            return False
+
+    video_duration = get_video_duration(video_path)
+    log(f"📹 Thời lượng video gốc: {video_duration:.2f} giây")
+
+    # Lọc và giới hạn các phân đoạn nằm trong phạm vi thời lượng thực tế của video gốc
+    valid_segments = []
+    for idx, seg in enumerate(segments):
+        start = seg["start_sec"]
+        if video_duration > 0 and start >= video_duration:
+            log(f"⚠️ Bỏ qua phân đoạn {idx+1} bắt đầu lúc {start:.2f}s vì vượt quá thời lượng video ({video_duration:.2f}s)")
+            continue
+            
+        end = start + 5.0 # Mặc định hiển thị cố định 5.0 giây
+        if video_duration > 0 and end > video_duration:
+            log(f"✂️ Giới hạn thời gian kết thúc phân đoạn {idx+1} từ {end:.2f}s về {video_duration:.2f}s")
+            end = video_duration
+            
+        if end - start <= 0:
+            continue
+            
+        seg["end_sec"] = end
+        valid_segments.append(seg)
+        
+    segments = valid_segments
+    if not segments:
+        log("⚠️ Không có phân đoạn hợp lệ nào sau khi lọc theo thời lượng video. Sao chép video gốc...")
         import shutil
         try:
             shutil.copy2(video_path, output_path)
@@ -133,8 +199,8 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
     for idx, seg in enumerate(segments):
         img_idx = idx + 1
         start = seg["start_sec"]
-        duration = 5.0
-        end = start + duration
+        end = seg["end_sec"]
+        duration = end - start
         
         total_frames = int(duration * fps)
         if total_frames <= 0:
@@ -170,12 +236,11 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
         out_v = f"v{img_idx}" if idx < len(segments) - 1 else "outv"
         
         start = seg["start_sec"]
-        duration = 5.0
-        end = start + duration
+        end = seg["end_sec"]
         
-        # overlays đè ảnh lên video trong khoảng thời gian [start, end] (luôn là 5s)
+        # overlays đè ảnh lên video trong khoảng thời gian [start, end] (eof_action=pass để tự động chuyển tiếp luồng chính mượt mà khi ảnh phụ hết)
         filter_parts.append(
-            f"[{last_v}][scaled_img{img_idx}]overlay=x=0:y=0:enable='between(t,{start:.3f},{end:.3f})'[{out_v}]"
+            f"[{last_v}][scaled_img{img_idx}]overlay=x=0:y=0:enable='between(t,{start:.3f},{end:.3f})':eof_action=pass[{out_v}]"
         )
         last_v = out_v
 
