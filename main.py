@@ -144,7 +144,7 @@ class VideoVisualReplacerUI(QWidget):
         self.spin_n = SpinBox()
         self.spin_n.setRange(1, 50)
         self.spin_n.setValue(5)
-        self.spin_n.setFixedWidth(100)
+        self.spin_n.setFixedWidth(140)
         grid_layout.addWidget(self.spin_n, 2, 1, Qt.AlignLeft)
 
         # 4. Chọn thư mục xuất
