@@ -123,8 +123,38 @@ class AppWorker(QThread):
             # Đóng trình duyệt ngay sau khi lấy xong kết quả phân tích sub
             self.controller.cleanup()
             
+            if keywords_data:
+                # Sắp xếp các từ khóa theo thời gian bắt đầu tăng dần
+                from video_processor import srt_time_to_seconds
+                
+                def get_start_sec(item):
+                    try:
+                        return srt_time_to_seconds(item.get("start", "00:00:00"))
+                    except Exception:
+                        return 0.0
+
+                sorted_items = sorted(keywords_data, key=get_start_sec)
+                
+                valid_items = []
+                last_start_sec = -999.0
+                for item in sorted_items:
+                    start_sec = get_start_sec(item)
+                    # 1. Từ khóa đầu tiên phải sau giây thứ 10
+                    if start_sec < 10.0:
+                        self.log(f"⚠️ Python lọc bỏ từ khóa '{item.get('keyword')}' vì xuất hiện trước giây thứ 10 ({item.get('start')})")
+                        continue
+                    # 2. Khoảng cách với từ khóa trước đó tối thiểu 10s
+                    if start_sec - last_start_sec < 10.0:
+                        self.log(f"⚠️ Python lọc bỏ từ khóa '{item.get('keyword')}' vì khoảng cách quá gần từ khóa trước ({start_sec - last_start_sec:.1f}s < 10s)")
+                        continue
+                    
+                    valid_items.append(item)
+                    last_start_sec = start_sec
+                    
+                keywords_data = valid_items
+            
             if not keywords_data:
-                raise RuntimeError("Phân tích SRT thất bại hoặc Gemini không trả về dữ liệu đúng định dạng JSON yêu cầu.")
+                raise RuntimeError("Phân tích SRT thất bại hoặc không có từ khóa nào thỏa mãn điều kiện thời gian (bắt đầu sau 10s và cách nhau ít nhất 10s).")
 
             self.progress_updated.emit(40)
             if self._is_stopped:

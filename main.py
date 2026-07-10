@@ -39,7 +39,7 @@ class VideoVisualReplacerUI(QWidget):
         captcha_exe = os.path.join(BASE_DIR, "CaptchaServer.exe")
         if os.path.exists(captcha_exe):
             try:
-                self.txt_log.append("🔌 Đang khởi động Captcha Server chạy ngầm (cổng 3000)...")
+                self.txt_log.append("🔌 Đang khởi động Captcha Server (cổng 3000)...")
                 
                 # Cấu hình để chạy ngầm không hiện cửa sổ console
                 startupinfo = None
@@ -122,7 +122,7 @@ class VideoVisualReplacerUI(QWidget):
         grid_layout.setSpacing(10)
 
         # 1. Chọn Video
-        grid_layout.addWidget(SubtitleLabel("Chọn Video đầu vào:"), 0, 0)
+        grid_layout.addWidget(SubtitleLabel("Chọn Video:"), 0, 0)
         self.txt_video = LineEdit()
         self.txt_video.setPlaceholderText("Đường dẫn file video (.mp4, .mkv, .avi,...)")
         grid_layout.addWidget(self.txt_video, 0, 1)
@@ -131,7 +131,7 @@ class VideoVisualReplacerUI(QWidget):
         grid_layout.addWidget(self.btn_browse_video, 0, 2)
 
         # 2. Chọn Phụ đề SRT
-        grid_layout.addWidget(SubtitleLabel("Chọn file phụ đề (.srt):"), 1, 0)
+        grid_layout.addWidget(SubtitleLabel("Chọn file SRT:"), 1, 0)
         self.txt_srt = LineEdit()
         self.txt_srt.setPlaceholderText("Đường dẫn file phụ đề SRT (.srt)")
         grid_layout.addWidget(self.txt_srt, 1, 1)
@@ -140,7 +140,7 @@ class VideoVisualReplacerUI(QWidget):
         grid_layout.addWidget(self.btn_browse_srt, 1, 2)
 
         # 3. Chọn số từ khóa N
-        grid_layout.addWidget(SubtitleLabel("Số từ khóa cần xử lý (N):"), 2, 0)
+        grid_layout.addWidget(SubtitleLabel("Số lượng ảnh:"), 2, 0)
         self.spin_n = SpinBox()
         self.spin_n.setRange(1, 50)
         self.spin_n.setValue(5)
@@ -148,7 +148,7 @@ class VideoVisualReplacerUI(QWidget):
         grid_layout.addWidget(self.spin_n, 2, 1, Qt.AlignLeft)
 
         # 4. Chọn thư mục xuất
-        grid_layout.addWidget(SubtitleLabel("Thư mục xuất kết quả:"), 3, 0)
+        grid_layout.addWidget(SubtitleLabel("Thư mục xuất:"), 3, 0)
         self.txt_output_dir = LineEdit()
         self.txt_output_dir.setPlaceholderText("Thư mục chứa video đầu ra")
         grid_layout.addWidget(self.txt_output_dir, 3, 1)
@@ -175,9 +175,9 @@ class VideoVisualReplacerUI(QWidget):
         grid_layout.addWidget(self.cb_ratio, 5, 1, Qt.AlignLeft)
 
         # 7. Prompt tùy chỉnh (Style bổ sung)
-        grid_layout.addWidget(SubtitleLabel("Prompt bổ sung (Style):"), 6, 0)
+        grid_layout.addWidget(SubtitleLabel("Prompt (Style):"), 6, 0)
         self.txt_custom_prompt = LineEdit()
-        self.txt_custom_prompt.setPlaceholderText("Ví dụ: Vietnam traditional style, cinematic, photorealistic...")
+        self.txt_custom_prompt.setPlaceholderText("Ví dụ: Vietnam traditional style, USA traditional style, photorealistic...")
         self.txt_custom_prompt.textChanged.connect(self.save_config)
         grid_layout.addWidget(self.txt_custom_prompt, 6, 1)
 
