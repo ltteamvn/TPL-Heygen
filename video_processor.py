@@ -190,11 +190,8 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
         duration = 5.0
         cmd.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", seg["image_path"]])
 
-    # Xây dựng filter_complex
-    # Bước 1: Khởi tạo luồng ảnh tĩnh động với hiệu ứng chuyển động chậm (zoompan) và mờ dần (Fade)
+    # Bước 1: Khởi tạo luồng ảnh tĩnh (Scale & Pad khớp video gốc) và mờ dần (Fade)
     filter_parts = []
-    import random
-    fps = 25
     
     for idx, seg in enumerate(segments):
         img_idx = idx + 1
@@ -202,23 +199,8 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
         end = seg["end_sec"]
         duration = end - start
         
-        total_frames = int(duration * fps)
-        if total_frames <= 0:
-            total_frames = 125
-            
-        # Chọn ngẫu nhiên hiệu ứng chuyển động chậm
-        effects = ["zoom_in", "zoom_out", "pan_lr", "pan_rl"]
-        effect = random.choice(effects)
-        
-        # 1. Áp dụng hiệu ứng zoompan trên ảnh tĩnh để tạo luồng video động chuyển động chậm (dùng trunc để khử hoàn toàn rung lắc)
-        if effect == "zoom_in":
-            motion_filter = f"zoompan=z='min(zoom+0.0005,1.08)':x='trunc(iw/2-(iw/zoom)/2)':y='trunc(ih/2-(ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
-        elif effect == "zoom_out":
-            motion_filter = f"zoompan=z='max(1.08-0.0005*on,1.0)':x='trunc(iw/2-(iw/zoom)/2)':y='trunc(ih/2-(ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
-        elif effect == "pan_lr":
-            motion_filter = f"zoompan=z=1.08:x='trunc((iw-iw/zoom)*(on/{total_frames}))':y='trunc((ih-ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
-        else: # pan_rl
-            motion_filter = f"zoompan=z=1.08:x='trunc((iw-iw/zoom)*(1.0-on/{total_frames}))':y='trunc((ih-ih/zoom)/2)':d={total_frames}:s={W}x{H}:fps={fps}"
+        # 1. Scale và pad ảnh tĩnh về đúng độ phân giải video gốc mà không làm méo tỉ lệ ảnh (không rung lắc, giữ độ nét gốc)
+        scale_filter = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2"
             
         # Dịch chuyển PTS để khớp với timeline của video gốc
         pts_filter = f"setpts=PTS+{start}/TB"
@@ -227,7 +209,7 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
         fade_duration = min(0.5, duration / 2.0)
         fade_filter = f"format=yuva420p,fade=t=in:st={start}:d={fade_duration}:alpha=1,fade=t=out:st={end-fade_duration}:d={fade_duration}:alpha=1"
         
-        filter_parts.append(f"[{img_idx}:v]{motion_filter},{pts_filter},{fade_filter}[scaled_img{img_idx}]")
+        filter_parts.append(f"[{img_idx}:v]{scale_filter},{pts_filter},{fade_filter}[scaled_img{img_idx}]")
 
     # Bước 2: Chuỗi các bộ lọc overlay
     last_v = "0:v"
