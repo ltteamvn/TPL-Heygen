@@ -281,3 +281,75 @@ def replace_video_segments(video_path: str, segments: List[Dict], output_path: s
     except Exception as e:
         log(f"❌ Ngoại lệ xảy ra trong FFmpeg: {e}")
         return False
+
+def format_time(seconds: float) -> str:
+    """Chuyển đổi giây sang định dạng thời gian SRT: HH:MM:SS,mmm"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    ms = int(round((seconds - int(seconds)) * 1000))
+    if ms == 1000:
+        s += 1
+        ms = 0
+        if s == 60:
+            m += 1
+            s = 0
+            if m == 60:
+                h += 1
+                m = 0
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+def transcribe_video_to_srt(video_path: str, output_srt_path: str, model_name: str = "base", log_callback=None) -> bool:
+    """
+    Sử dụng OpenAI Whisper trích xuất giọng nói từ video thành file phụ đề SRT.
+    Model mặc định là 'base' để tăng độ chuẩn xác tiếng Việt và vẫn chạy nhanh, nhẹ.
+    """
+    def log(msg):
+        if log_callback:
+            log_callback(msg)
+        else:
+            logger.info(msg)
+
+    try:
+        import whisper
+        
+        # Tự động tạo thư mục chứa model cục bộ ngay trong thư mục dự án
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        local_model_dir = os.path.join(base_dir, "whisper_models")
+        os.makedirs(local_model_dir, exist_ok=True)
+        
+        local_model_path = os.path.join(local_model_dir, f"{model_name}.pt")
+        
+        # Nếu có file model cục bộ (được tải sẵn hoặc đi kèm khi đóng gói)
+        if os.path.exists(local_model_path):
+            log(f"🎙️ Phát hiện file mô hình cục bộ tại: {local_model_path}. Tiến hành tải offline...")
+            model = whisper.load_model(local_model_path)
+        else:
+            log(f"🎙️ Không thấy file mô hình cục bộ. Đang tải mô hình '{model_name}' từ Internet (khoảng 140MB, chỉ tải 1 lần đầu)...")
+            model = whisper.load_model(model_name, download_root=local_model_dir)
+            log(f"💾 Đã lưu mô hình thành công tại: {local_model_dir}")
+        log("🎙️ Đang phân tích âm thanh từ video để tự động nhận diện ngôn ngữ và sinh phụ đề...")
+        # Tiến hành transcribe tự động nhận diện ngôn ngữ (hỗ trợ tiếng Việt, Anh, Tây Ban Nha,...)
+        result = model.transcribe(video_path, verbose=False)
+        
+        log(f"💾 Đang ghi phụ đề ra file: {output_srt_path}")
+        with open(output_srt_path, "w", encoding="utf-8") as f:
+            for idx, seg in enumerate(result.get("segments", []), 1):
+                start = seg.get("start", 0.0)
+                end = seg.get("end", 0.0)
+                text = seg.get("text", "").strip()
+                
+                # Định dạng chuẩn SRT
+                f.write(f"{idx}\n")
+                f.write(f"{format_time(start)} --> {format_time(end)}\n")
+                f.write(f"{text}\n\n")
+                
+        log("✅ Trích xuất phụ đề tự động thành công!")
+        return True
+    except Exception as e:
+        import traceback
+        err_msg = f"❌ Lỗi trích xuất phụ đề: {e}\n{traceback.format_exc()}"
+        log(err_msg)
+        logger.error(err_msg)
+        return False
+

@@ -2,5 +2,14 @@
     "n_keywords": 5,
     "output_dir": "",
     "image_model": "GEM_PIX_2",
-    "aspect_ratio": "16:9"
+    "aspect_ratio": "16:9",
+    "style_preset": "Tự nhập prompt...",
+    "custom_prompt": "",
+    "batch_videos": [],
+    "batch_n": 5,
+    "batch_output_dir": "",
+    "batch_model": "GEM_PIX_2",
+    "batch_aspect_ratio": "16:9",
+    "batch_style_preset": "Tự nhập prompt...",
+    "batch_custom_prompt": ""
 }

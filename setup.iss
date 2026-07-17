@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "TPL Heygen"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "Lý Trần"
 #define MyAppExeName "TPL_Heygen.exe"
 #define MySourceDir "build_out\TPL_Heygen.dist"

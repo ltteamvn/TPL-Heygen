@@ -198,6 +198,54 @@ class BrowserAutomationController:
         else:
             logger.info(msg)
 
+    def ensure_captcha_server_running(self) -> bool:
+        """Kiểm tra và tự động khởi động lại CaptchaServer.exe nếu nó bị tắt hoặc không phản hồi cổng 3000."""
+        import socket
+        
+        def is_port_open(port):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(1.0)
+                    s.connect(('127.0.0.1', port))
+                    return True
+            except Exception:
+                return False
+                
+        if is_port_open(3000):
+            return True
+            
+        captcha_exe = os.path.join(BASE_DIR, "CaptchaServer.exe")
+        if os.path.exists(captcha_exe):
+            self.log("🔌 Phát hiện Captcha Server (cổng 3000) không hoạt động. Đang tự động khởi động lại...")
+            try:
+                startupinfo = None
+                if os.name == 'nt':
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    startupinfo.wShowWindow = subprocess.SW_HIDE
+                    
+                subprocess.Popen(
+                    [captcha_exe],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    startupinfo=startupinfo,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+                    cwd=BASE_DIR
+                )
+                
+                # Đợi tối đa 8 giây để server khởi động và mở cổng
+                for _ in range(8):
+                    time.sleep(1)
+                    if is_port_open(3000):
+                        self.log("✅ Khởi động lại Captcha Server thành công.")
+                        return True
+            except Exception as e:
+                self.log(f"⚠️ Lỗi khi khởi động lại Captcha Server: {e}")
+        else:
+            self.log("⚠️ Cảnh báo: Không tìm thấy file CaptchaServer.exe để khởi động lại.")
+            
+        return False
+
     def setup_browser(self, profile_path: str, headless: bool = False) -> bool:
         """Khởi chạy undetected-chromedriver sử dụng profile được chỉ định."""
         try:
@@ -626,20 +674,29 @@ class BrowserAutomationController:
         style_instructions = ""
         if custom_prompt.strip():
             style_instructions = (
-                f"\nLƯU Ý QUAN TRỌNG VỀ PHONG CÁCH (STYLE): Hãy lồng ghép thêm phong cách/yêu cầu sau đây "
-                f"vào tất cả các câu prompt tạo ảnh (trường 'prompt' trong JSON): '{custom_prompt.strip()}'."
+                f"\nLƯU Ý CỰC KỲ QUAN TRỌNG VỀ CHỦ ĐỀ VÀ PHONG CÁCH (STYLE): Hãy lồng ghép thêm phong cách, chủ đề, hoặc yêu cầu thẩm mỹ sau đây "
+                f"vào bối cảnh, đối tượng, và cách thể hiện của tất cả các câu prompt tạo ảnh (trường 'prompt' trong JSON): '{custom_prompt.strip()}'.\n"
+                f"Ví dụ, nếu style là 'Lĩnh vực y tế' (hoặc liên quan đến y tế, y khoa, sức khỏe, bệnh viện, bác sĩ), các câu prompt tạo ảnh bằng tiếng Anh nên bổ sung các bối cảnh y tế, trang thiết bị y khoa, bác sĩ, hoặc hình ảnh liên quan đến y tế.\n"
+                f"ĐẶC BIỆT LƯU Ý: Nếu style là 'Lĩnh vực y tế' (hoặc liên quan đến y khoa/y tế/sức khỏe), hình ảnh sinh ra BẮT BUỘC PHẢI LÀ ẢNH CHỤP THỰC TẾ ĐỜI THƯỜNG (realistic photograph, real-life photo, shot on camera, real life setting), "
+                f"TUYỆT ĐỐI KHÔNG ĐƯỢC tạo ảnh vẽ (no drawings, no paintings, no illustrations, no sketches), KHÔNG ĐƯỢC tạo ảnh 3D (no 3D renders, no cartoon, no CGI, no 3D digital art, no fake 3D look).\n"
+                f"QUAN TRỌNG: TUYỆT ĐỐI KHÔNG ĐƯỢC đưa nguyên văn hay dịch cụm từ style '{custom_prompt.strip()}' này làm văn bản hay chữ viết (text) để in/vẽ lên trên ảnh."
             )
             
         prompt = (
             f"Dưới đây là nội dung tệp phụ đề SRT:\n\n{srt_content}\n\n"
             f"Nhiệm vụ: Hãy phân tích tệp SRT này, tìm ra các từ khóa quan trọng và mô tả các phân đoạn tương ứng. "
-            f"Chọn đúng {n_keywords} từ khóa xuất hiện trong tệp phụ đề thỏa mãn các điều kiện bắt buộc sau đây:\n"
-            f"1. ÉP BUỘC THỜI GIAN BẮT ĐẦU: Từ khóa đầu tiên chỉ được phép chọn ở phân đoạn xuất hiện sau giây thứ 10 của video (tức là thời gian Start phải >= 00:00:10.000).\n"
-            f"2. ÉP BUỘC KHOẢNG CÁCH GIỮA CÁC TỪ KHÓA: Thời gian bắt đầu (Start) của từ khóa tiếp theo phải cách thời gian bắt đầu (Start) của từ khóa trước đó tối thiểu ít nhất là 10 giây (Start_sau - Start_trước >= 10.0 giây).\n"
-            f"3. TỰ ĐỘNG TỐI ƯU HÓA PROMPT THEO NGÔN NGỮ SRT:\n"
+            f"Hãy chọn đúng và đủ {n_keywords} từ khóa xuất hiện trong tệp phụ đề thỏa mãn các điều kiện bắt buộc sau đây:\n"
+            f"1. YÊU CẦU SỐ LƯỢNG: Phải tìm và trả về ĐÚNG {n_keywords} từ khóa, phân bổ đều theo dòng thời gian từ đầu đến cuối phụ đề SRT. Không được tự ý rút ngắn hoặc gom cụm lại.\n"
+            f"2. ÉP BUỘC THỜI GIAN BẮT ĐẦU: Từ khóa đầu tiên nên bắt đầu sớm (ví dụ sau giây thứ 2 hoặc thứ 3 của video, tức là Start >= 00:00:02.000) để đảm bảo có ảnh minh họa sớm.\n"
+            f"3. ÉP BUỘC KHOẢNG CÁCH GIỮA CÁC TỪ KHÓA: Các từ khóa nên cách đều nhau theo thời gian (ví dụ: khoảng cách giữa Start của từ khóa sau và từ khóa trước nên gần giống nhau và lớn hơn 2 giây).\n"
+            f"4. KIỂM SOÁT VĂN BẢN (TEXT) TRÊN HÌNH ẢNH & YÊU CẦU ĐỊA PHƯƠNG HÓA VĂN HÓA (LOCALIZATION):\n"
             f"   - Hãy tự động phát hiện ngôn ngữ chính của tệp phụ đề SRT.\n"
-            f"   - Bối cảnh hình ảnh tạo ra phải phù hợp với quốc gia/nền văn hóa của ngôn ngữ đó (Ví dụ: SRT tiếng Việt thì bối cảnh thuần Việt Nam, người Việt, phong cảnh Việt; SRT tiếng Nhật thì bối cảnh Nhật Bản; SRT tiếng Anh thì bối cảnh Âu Mỹ/quốc tế,...).\n"
-            f"   - Đặc biệt, nếu trên hình ảnh cần có chữ viết/văn bản (text), chữ viết đó bắt buộc phải hiển thị bằng chính ngôn ngữ tương ứng của tệp SRT (Ví dụ: SRT tiếng Việt thì dùng tiếng Việt có dấu; SRT tiếng Nhật thì dùng chữ tiếng Nhật; SRT tiếng Anh thì dùng tiếng Anh,...). Không được dùng ngôn ngữ khác gây lệch ngữ cảnh.\n\n"
+            f"   - Bối cảnh hình ảnh, con người, phong cảnh, chữ viết... phải PHÙ HỢP HOÀN TOÀN với quốc gia/nền văn hóa của ngôn ngữ phụ đề đó. Ví dụ cụ thể:\n"
+            f"     + Nếu SRT là tiếng Việt: Các nhân vật trong ảnh bắt buộc phải là người Việt Nam (Vietnamese people, Vietnamese doctor, Vietnamese patient, etc.); bối cảnh phải thuần Việt Nam (streets of Vietnam, Vietnamese hospital, etc.); và chữ viết (nếu có) phải là tiếng Việt có dấu (ví dụ: bảng hiệu bằng tiếng Việt).\n"
+            f"     + Nếu SRT là tiếng Anh: Các nhân vật trong ảnh phải là người Mỹ/người phương Tây (American person, American people, American doctor, etc.); bối cảnh phải mang phong cách Mỹ/phương Tây (American setting, US hospital, streets of USA, etc.); và chữ viết (nếu có) phải bằng tiếng Anh (English text).\n"
+            f"     + Nếu SRT là tiếng Nhật: Các nhân vật phải là người Nhật (Japanese people); bối cảnh phải ở Nhật Bản (streets of Japan); và chữ viết (nếu có) bằng tiếng Nhật (Japanese text).\n"
+            f"     + Áp dụng quy tắc địa phương hóa tương tự cho các ngôn ngữ khác.\n"
+            f"   - HẠN CHẾ TỐI ĐA việc vẽ chữ viết bừa bãi, nhãn mác vô nghĩa trên ảnh để tránh lỗi font chữ của AI tạo ảnh.\n"
             f"{style_instructions}\n\n"
             f"Đặc biệt chú ý: định dạng timeline là HH:MM:SS (hoặc HH:MM:SS,mmm), hãy ghi lại chính xác thời gian bắt đầu và kết thúc của đoạn chứa từ khóa trong SRT.\n\n"
             f"Trả về kết quả duy nhất ở định dạng JSON thô bên dưới, không chứa bất kỳ lời giải thích nào khác ngoài chuỗi JSON:\n"
@@ -1798,6 +1855,10 @@ class BrowserAutomationController:
                     
                 # 2. Gọi sang API NestJS ở cổng 3000 để lấy recaptcha token + fresh headers
                 self.log(f"   🔌 [{attempt + 1}/{max_attempts}] Kết nối tới NestJS Captcha Server (cổng 3000)...")
+                
+                # Tự động hồi sinh Captcha Server nếu bị crash
+                self.ensure_captcha_server_running()
+                
                 try:
                     # Gửi force-refresh
                     try:
