@@ -2,6 +2,16 @@ import nuitka_imports
 import os
 import sys
 
+# Tự động thêm thư mục ứng dụng và thư mục ffmpeg vào PATH để Whisper và các lệnh hệ thống luôn tìm thấy ffmpeg
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ffmpeg_dir = os.path.join(BASE_DIR, "ffmpeg")
+paths_to_add = [BASE_DIR, ffmpeg_dir]
+current_path = os.environ.get("PATH", "")
+for p in paths_to_add:
+    if os.path.exists(p) and p not in current_path.split(os.path.pathsep):
+        current_path = p + os.path.pathsep + current_path
+os.environ["PATH"] = current_path
+
 # Bat loi khoi dong he thong va import
 try:
     import app_worker

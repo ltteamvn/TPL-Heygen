@@ -9,6 +9,15 @@ logger = logging.getLogger(__name__)
 # Thư mục gốc của dự án
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Tự động thêm thư mục ffmpeg và thư mục ứng dụng vào PATH hệ thống để Whisper và subprocess luôn tìm thấy ffmpeg
+ffmpeg_dir = os.path.join(BASE_DIR, "ffmpeg")
+paths_to_add = [BASE_DIR, ffmpeg_dir]
+current_path = os.environ.get("PATH", "")
+for p in paths_to_add:
+    if os.path.exists(p) and p not in current_path.split(os.path.pathsep):
+        current_path = p + os.path.pathsep + current_path
+os.environ["PATH"] = current_path
+
 def get_ffmpeg_path() -> str:
     """Lấy đường dẫn tới file ffmpeg.exe cục bộ trong thư mục ffmpeg của dự án, hoặc fallback."""
     local_path = os.path.join(BASE_DIR, "ffmpeg", "ffmpeg.exe")

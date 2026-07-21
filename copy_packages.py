@@ -426,6 +426,53 @@ def normalize_pyd_extensions(dest_dir):
                     except Exception as e:
                         print(f"[Warning] Khong the copy/rename file {file}: {e}")
 
+def copy_project_assets(dest_dir):
+    """Copy thư mục ffmpeg, extension, whisper_models, logo.ico và các file phụ trợ vào thư mục build."""
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    
+    # 1. Copy thư mục ffmpeg
+    src_ffmpeg = os.path.join(BASE_DIR, "ffmpeg")
+    dst_ffmpeg = os.path.join(dest_dir, "ffmpeg")
+    if os.path.exists(src_ffmpeg):
+        print("Copying ffmpeg directory...")
+        if os.path.exists(dst_ffmpeg):
+            shutil.rmtree(dst_ffmpeg)
+        shutil.copytree(src_ffmpeg, dst_ffmpeg)
+        
+        # Copy trực tiếp ffmpeg.exe & ffprobe.exe lên thư mục gốc dest_dir để đảm bảo 100% không bao giờ sót
+        for exe_name in ["ffmpeg.exe", "ffprobe.exe"]:
+            exe_src = os.path.join(src_ffmpeg, exe_name)
+            exe_dst = os.path.join(dest_dir, exe_name)
+            if os.path.exists(exe_src):
+                shutil.copy2(exe_src, exe_dst)
+
+    # 2. Copy thư mục extension
+    src_ext = os.path.join(BASE_DIR, "extension")
+    dst_ext = os.path.join(dest_dir, "extension")
+    if os.path.exists(src_ext):
+        print("Copying extension directory...")
+        if os.path.exists(dst_ext):
+            shutil.rmtree(dst_ext)
+        shutil.copytree(src_ext, dst_ext)
+
+    # 3. Copy thư mục whisper_models (nếu có)
+    src_wm = os.path.join(BASE_DIR, "whisper_models")
+    dst_wm = os.path.join(dest_dir, "whisper_models")
+    if os.path.exists(src_wm):
+        print("Copying whisper_models directory...")
+        if os.path.exists(dst_wm):
+            shutil.rmtree(dst_wm)
+        shutil.copytree(src_wm, dst_wm)
+
+    # 4. Copy các file riêng lẻ: logo.ico, CaptchaServer.exe, app_config.json
+    asset_files = ["logo.ico", "CaptchaServer.exe", "app_config.json"]
+    for file_name in asset_files:
+        src_f = os.path.join(BASE_DIR, file_name)
+        dst_f = os.path.join(dest_dir, file_name)
+        if os.path.exists(src_f):
+            print(f"Copying file {file_name}...")
+            shutil.copy2(src_f, dst_f)
+
 if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     build_dir = os.path.join(BASE_DIR, "build_out")
@@ -461,9 +508,11 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[Warning] Khong the doi ten file main.exe: {e}")
 
-    # 3. Tien hanh copy cac thu vien
+    # 3. Tien hanh copy cac thu vien va assets cua du an
     if os.path.exists(dest_dist):
         copy_packages(dest_dist)
+        copy_project_assets(dest_dist)
         print("Success: Copied all packages and files!")
     else:
         print("[Error] Khong tim thay thu muc phan phoi TPL_Heygen.dist. Hay chac chan Nuitka da build thanh cong!")
+
