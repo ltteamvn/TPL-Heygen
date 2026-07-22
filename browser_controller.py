@@ -673,23 +673,40 @@ class BrowserAutomationController:
         # Thêm chỉ thị về phong cách/style ảnh nếu có
         style_instructions = ""
         if custom_prompt.strip():
-            style_instructions = (
-                f"\nLƯU Ý CỰC KỲ QUAN TRỌNG VỀ CHỦ ĐỀ VÀ PHONG CÁCH (STYLE): Hãy lồng ghép thêm phong cách, chủ đề, hoặc yêu cầu thẩm mỹ sau đây "
-                f"vào bối cảnh, đối tượng, và cách thể hiện của tất cả các câu prompt tạo ảnh (trường 'prompt' trong JSON): '{custom_prompt.strip()}'.\n"
-                f"Ví dụ, nếu style là 'Lĩnh vực y tế' (hoặc liên quan đến y tế, y khoa, sức khỏe, bệnh viện, bác sĩ), các câu prompt tạo ảnh bằng tiếng Anh nên bổ sung các bối cảnh y tế, trang thiết bị y khoa, bác sĩ, hoặc hình ảnh liên quan đến y tế.\n"
-                f"ĐẶC BIỆT LƯU Ý: Nếu style là 'Lĩnh vực y tế' (hoặc liên quan đến y khoa/y tế/sức khỏe), hình ảnh sinh ra BẮT BUỘC PHẢI LÀ ẢNH CHỤP THỰC TẾ ĐỜI THƯỜNG (realistic photograph, real-life photo, shot on camera, real life setting), "
-                f"TUYỆT ĐỐI KHÔNG ĐƯỢC tạo ảnh vẽ (no drawings, no paintings, no illustrations, no sketches), KHÔNG ĐƯỢC tạo ảnh 3D (no 3D renders, no cartoon, no CGI, no 3D digital art, no fake 3D look).\n"
-                f"QUAN TRỌNG: TUYỆT ĐỐI KHÔNG ĐƯỢC đưa nguyên văn hay dịch cụm từ style '{custom_prompt.strip()}' này làm văn bản hay chữ viết (text) để in/vẽ lên trên ảnh."
-            )
+            # Kiểm tra xem style có liên quan đến thực phẩm & dinh dưỡng y khoa (không người) không
+            is_nutrition_no_people = ("thực phẩm" in custom_prompt.lower() or "dinh dưỡng" in custom_prompt.lower()) and "không có con người" in custom_prompt.lower()
+            
+            if is_nutrition_no_people:
+                style_instructions = (
+                    f"\nLƯU Ý CỰC KỲ QUAN TRỌNG VỀ PHONG CÁCH 'THỰC PHẨM & DINH DƯỠNG Y KHOA (KHÔNG NGƯỜI)':\n"
+                    f"   - Phong cách này yêu cầu các hình ảnh mang tính khoa học, giáo dục dinh dưỡng, minh họa thực phẩm y tế.\n"
+                    f"   - ĐẶC TRƯNG: Các hình ảnh phải có dạng sơ đồ tháp dinh dưỡng (nutrition pyramid diagram), biểu đồ dinh dưỡng (nutrition chart), các loại rau củ quả, thực phẩm tốt cho sức khỏe được xếp gọn gàng, có bố cục chú thích rõ ràng.\n"
+                    f"   - TUYỆT ĐỐI KHÔNG CÓ CON NGƯỜI (No people, no humans, no doctor, no patient, no hands, no faces, no silhouettes).\n"
+                    f"   - Hãy mô tả chi tiết các loại rau củ quả, hạt dinh dưỡng, hoặc tháp dinh dưỡng cụ thể liên quan mật thiết đến nội dung của câu phụ đề (ví dụ nếu phụ đề nói về bệnh tiểu đường, hãy vẽ tháp dinh dưỡng cho người tiểu đường gồm bông cải xanh, ngũ cốc nguyên hạt; nếu nói về tim mạch, hãy vẽ quả bơ, dầu oliu, quả mọng;...). Prompt tiếng Anh cần ghi rõ: 'medical nutrition diagram, food pyramid chart, clinical diet illustration, flat design, clean vector art, no people, high educational value, informative infographic style'."
+                )
+            else:
+                style_instructions = (
+                    f"\nLƯU Ý CỰC KỲ QUAN TRỌNG VỀ CHỦ ĐỀ VÀ PHONG CÁCH (STYLE): Hãy lồng ghép thêm phong cách, chủ đề, hoặc yêu cầu thẩm mỹ sau đây "
+                    f"vào bối cảnh, đối tượng, và cách thể hiện của tất cả các câu prompt tạo ảnh (trường 'prompt' trong JSON): '{custom_prompt.strip()}'.\n"
+                    f"Ví dụ, nếu style là 'Lĩnh vực y tế' (hoặc liên quan đến y tế, y khoa, sức khỏe, bệnh viện, bác sĩ), các câu prompt tạo ảnh bằng tiếng Anh nên bổ sung các bối cảnh y tế, trang thiết bị y khoa, bác sĩ, hoặc hình ảnh liên quan đến y tế.\n"
+                    f"ĐẶC BIỆT LƯU Ý: Nếu style là 'Lĩnh vực y tế' (hoặc liên quan đến y khoa/y tế/sức khỏe), hình ảnh sinh ra BẮT BUỘC PHẢI LÀ ẢNH CHỤP THỰC TẾ ĐỜI THƯỜNG (realistic photograph, real-life photo, shot on camera, real life setting), "
+                    f"TUYỆT ĐỐI KHÔNG ĐƯỢC tạo ảnh vẽ (no drawings, no paintings, no illustrations, no sketches), KHÔNG ĐƯỢC tạo ảnh 3D (no 3D renders, no cartoon, no CGI, no 3D digital art, no fake 3D look).\n"
+                    f"QUAN TRỌNG: TUYỆT ĐỐI KHÔNG ĐƯỢC đưa nguyên văn hay dịch cụm từ style '{custom_prompt.strip()}' này làm văn bản hay chữ viết (text) để in/vẽ lên trên ảnh."
+                )
             
         prompt = (
             f"Dưới đây là nội dung tệp phụ đề SRT:\n\n{srt_content}\n\n"
             f"Nhiệm vụ: Hãy phân tích tệp SRT này, tìm ra các từ khóa quan trọng và mô tả các phân đoạn tương ứng. "
             f"Hãy chọn đúng và đủ {n_keywords} từ khóa xuất hiện trong tệp phụ đề thỏa mãn các điều kiện bắt buộc sau đây:\n"
             f"1. YÊU CẦU SỐ LƯỢNG: Phải tìm và trả về ĐÚNG {n_keywords} từ khóa, phân bổ đều theo dòng thời gian từ đầu đến cuối phụ đề SRT. Không được tự ý rút ngắn hoặc gom cụm lại.\n"
-            f"2. ÉP BUỘC THỜI GIAN BẮT ĐẦU: Từ khóa đầu tiên nên bắt đầu sớm (ví dụ sau giây thứ 2 hoặc thứ 3 của video, tức là Start >= 00:00:02.000) để đảm bảo có ảnh minh họa sớm.\n"
-            f"3. ÉP BUỘC KHOẢNG CÁCH GIỮA CÁC TỪ KHÓA: Các từ khóa nên cách đều nhau theo thời gian (ví dụ: khoảng cách giữa Start của từ khóa sau và từ khóa trước nên gần giống nhau và lớn hơn 2 giây).\n"
-            f"4. KIỂM SOÁT VĂN BẢN (TEXT) TRÊN HÌNH ẢNH & YÊU CẦU ĐỊA PHƯƠNG HÓA VĂN HÓA (LOCALIZATION):\n"
+            f"2. ĐỘ SÂU KIẾN THỨC NỘI DUNG (CONTENT DOMAIN KNOWLEDGE): \n"
+            f"   - TUYỆT ĐỐI KHÔNG VIẾT PROMPT TẠO ẢNH BỪA BÃI HOẶC CHUNG CHUNG.\n"
+            f"   - Mỗi câu prompt tạo ảnh (bằng tiếng Anh) phải được viết dựa trên kiến thức khoa học, chuyên môn chính xác về nội dung của đoạn phụ đề đó.\n"
+            f"   - Ví dụ: Nếu phụ đề nói về hệ xương khớp, prompt phải mô tả chính xác mô hình xương, khớp (anatomical model of human joints); nếu nói về tế bào ung thư, prompt phải mô tả hình ảnh kính hiển vi của tế bào lympho tấn công tế bào ung thư (microscopic view of lymphocyte attacking cancer cell); nếu nói về chế độ ăn uống cho người bệnh thận, prompt phải mô tả rõ các loại thực phẩm ít kali và natri phù hợp.\n"
+            f"   - Mục tiêu: Giúp người xem hiểu ngay kiến thức chuyên môn mà video muốn nói đến, làm tăng giá trị nội dung học thuật/thông tin của video.\n"
+            f"3. ÉP BUỘC THỜI GIAN BẮT ĐẦU: Từ khóa đầu tiên nên bắt đầu sớm (ví dụ sau giây thứ 2 hoặc thứ 3 của video, tức là Start >= 00:00:02.000) để đảm bảo có ảnh minh họa sớm.\n"
+            f"4. ÉP BUỘC KHOẢNG CÁCH GIỮA CÁC TỪ KHÓA: Các từ khóa nên cách đều nhau theo thời gian (ví dụ: khoảng cách giữa Start của từ khóa sau và từ khóa trước nên gần giống nhau và lớn hơn 2 giây).\n"
+            f"5. KIỂM SOÁT VĂN BẢN (TEXT) TRÊN HÌNH ẢNH & YÊU CẦU ĐỊA PHƯƠNG HÓA VĂN HÓA (LOCALIZATION):\n"
             f"   - Hãy tự động phát hiện ngôn ngữ chính của tệp phụ đề SRT.\n"
             f"   - Bối cảnh hình ảnh, con người, phong cảnh, chữ viết... phải PHÙ HỢP HOÀN TOÀN với quốc gia/nền văn hóa của ngôn ngữ phụ đề đó. Ví dụ cụ thể:\n"
             f"     + Nếu SRT là tiếng Việt: Các nhân vật trong ảnh bắt buộc phải là người Việt Nam (Vietnamese people, Vietnamese doctor, Vietnamese patient, etc.); bối cảnh phải thuần Việt Nam (streets of Vietnam, Vietnamese hospital, etc.); và chữ viết (nếu có) phải là tiếng Việt có dấu (ví dụ: bảng hiệu bằng tiếng Việt).\n"

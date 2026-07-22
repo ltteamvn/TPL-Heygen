@@ -60,6 +60,7 @@ CONFIG_FILE = os.path.join(BASE_DIR, "app_config.json")
 STYLE_PRESETS = {
     "Tự nhập prompt...": "",
     "Chuyên ngành Y tế & Y khoa": "Lĩnh vực y tế",
+    "Thực phẩm & Dinh dưỡng Y khoa (Không người)": "Thực phẩm và dinh dưỡng y tế, dạng sơ đồ tháp dinh dưỡng, biểu đồ, rau củ quả tốt cho sức khỏe, không có con người",
     "Giáo dục & Học tập": "Educational illustration, school learning style, flat design, clean vector art, study and book icons, bright colors",
     "Kinh doanh & Tài chính": "Business concept, financial technology, corporate office background, modern vector illustration, growth chart icons",
     "Ảnh chụp thực tế siêu nét (Photorealistic)": "Photorealistic, 8k resolution, highly detailed, professional photography, natural lighting, sharp focus",
